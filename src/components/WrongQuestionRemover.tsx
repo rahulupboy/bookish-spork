@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { AlertTriangle, Trash2, Eye, CheckCircle, XCircle, RefreshCw, Database, Zap, Settings, Play, Pause } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { validateQuestionWithAI, ExtractedQuestion } from '../lib/gemini';
+import { validateQuestionWithAI, validateQuestionComprehensively, ExtractedQuestion } from '../lib/gemini';
 import { QuestionPreview } from './QuestionPreview';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -105,10 +105,26 @@ export function WrongQuestionRemover() {
     if (!selectedCourse) return;
 
     try {
+      // First get all topic IDs for the selected course
+      const { data: topics, error: topicsError } = await supabase
+        .from('topics')
+        .select('id')
+        .eq('chapters.course_id', selectedCourse);
+      
+      if (topicsError) throw topicsError;
+      
+      if (!topics || topics.length === 0) {
+        setTotalQuestions(0);
+        return;
+      }
+      
+      const topicIds = topics.map(topic => topic.id);
+      
+      // Then count questions for these topics
       const { count, error } = await supabase
         .from('new_questions')
         .select('*', { count: 'exact', head: true })
-        .eq('topics.chapters.course_id', selectedCourse);
+        .in('topic_id', topicIds);
       
       if (error) throw error;
       setTotalQuestions(count || 0);
@@ -236,19 +252,27 @@ export function WrongQuestionRemover() {
     });
 
     try {
-      // Get all questions for the selected course
+      // First get all topic IDs for the selected course
+      const { data: topics, error: topicsError } = await supabase
+        .from('topics')
+        .select('id, name, chapters!inner(course_id)')
+        .eq('chapters.course_id', selectedCourse);
+      
+      if (topicsError) throw topicsError;
+      
+      if (!topics || topics.length === 0) {
+        toast.success('No topics found for this course');
+        setProgress(prev => ({ ...prev, isValidating: false }));
+        return;
+      }
+      
+      const topicIds = topics.map(topic => topic.id);
+      
+      // Then get all questions for these topics
       const { data: questions, error } = await supabase
         .from('new_questions')
-        .select(`
-          *, 
-          topics!inner(
-            id, name, 
-            chapters!inner(
-              course_id
-            )
-          )
-        `)
-        .eq('topics.chapters.course_id', selectedCourse);
+        .select('*, topics(id, name)')
+        .in('topic_id', topicIds);
 
       if (error) throw error;
 
@@ -286,23 +310,26 @@ export function WrongQuestionRemover() {
           currentQuestionText: question.question_statement.substring(0, 100) + '...'
         }));
 
-        // Basic validation first
-        const basicValidation = validateQuestion(question);
+        let finalValidation;
         
-        let finalValidation = basicValidation;
-
-        // For NAT questions, use AI validation if basic validation passes
-        if (question.question_type === 'NAT' && !basicValidation.isWrong) {
+        // Use AI validation for all question types except Subjective
+        if (question.question_type === 'Subjective') {
+          // Subjective questions are always considered valid
+          finalValidation = { isWrong: false, reason: 'Subjective questions are always valid', confidence: 1.0 };
+        } else {
+          // Use comprehensive AI validation for MCQ, MSQ, and NAT
           try {
-            toast(`🤖 AI validating NAT question ${i + 1}...`, { duration: 2000 });
-            const aiValidation = await validateQuestionWithAI(question);
+            toast(`🤖 AI validating ${question.question_type} question ${i + 1}...`, { duration: 2000 });
+            const aiValidation = await validateQuestionComprehensively(question);
             finalValidation = aiValidation;
             
             // Add delay for AI calls
             await new Promise(resolve => setTimeout(resolve, 3000));
           } catch (error) {
             console.error('AI validation failed:', error);
-            // Fall back to basic validation
+            // Fall back to basic validation if AI fails
+            const basicValidation = validateQuestion(question);
+            finalValidation = basicValidation;
           }
         }
 

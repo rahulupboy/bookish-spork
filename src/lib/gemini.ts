@@ -1127,6 +1127,8 @@ VALIDATION RULES FOR MCQ:
 4. Verify if the provided answer matches the correct option
 5. If no options are correct OR more than one option is correct, mark as WRONG
 6. If the provided answer doesn't match the single correct option, mark as WRONG
+7. If the provided answer is not one of the valid option letters (A, B, C, D, E), mark as WRONG
+8. If the question cannot be solved or is ambiguous, mark as WRONG
 
 RESPONSE FORMAT (JSON only):
 {
@@ -1150,10 +1152,12 @@ PROVIDED ANSWER: ${question.answer}
 VALIDATION RULES FOR MSQ:
 1. Solve the question step by step
 2. Determine which option(s) are correct
-3. Check if MULTIPLE options can be correct (MSQ allows this)
+3. Check if one or more options are correct (MSQ allows multiple correct answers)
 4. Verify if the provided answer includes all correct options
 5. If NO options are correct, mark as WRONG
 6. If the provided answer doesn't match the correct options, mark as WRONG
+7. If the provided answer contains invalid option letters, mark as WRONG
+8. If the question cannot be solved or is ambiguous, mark as WRONG
 
 RESPONSE FORMAT (JSON only):
 {
@@ -1178,10 +1182,11 @@ VALIDATION RULES FOR NAT:
 2. Calculate the exact numerical answer
 3. Check if the provided answer is a valid number
 4. Compare your calculated answer with the provided answer
-5. Allow for reasonable rounding differences (±0.01 for decimals, ±1 for large integers)
+5. Allow for reasonable rounding differences (±0.1 for decimals, ±1 for integers)
 6. If the provided answer is not numerical, mark as WRONG
 7. If the question cannot be solved mathematically, mark as WRONG
 8. If the calculated answer differs significantly from provided answer, mark as WRONG
+9. If the question is ambiguous or missing information, mark as WRONG
 
 RESPONSE FORMAT (JSON only):
 {
