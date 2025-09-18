@@ -108,7 +108,7 @@ export function WrongQuestionRemover() {
       // First get all topic IDs for the selected course
       const { data: topics, error: topicsError } = await supabase
         .from('topics')
-        .select('id')
+        .select('id, chapters(course_id)')
         .eq('chapters.course_id', selectedCourse);
       
       if (topicsError) throw topicsError;
